@@ -87,7 +87,7 @@ const App: React.FC = () => {
     }
   }, [currentPlayer, gameOver]);
 
-  // --- New Game Setup ---
+  // --- New Game Setup with Coin Toss Animation ---
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
@@ -99,23 +99,31 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Begin coin toss: hide inputs during toss.
+    // Start coin toss animation for a random duration between 2 and 5 seconds.
     setTossing(true);
-    setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
+    const coinTossTime = getRandomInt(2000, 5000);
+    const tossInterval = setInterval(() => {
+      const randomChoice = getRandomInt(0, 1);
+      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+    }, 300);
     setTimeout(() => {
+      clearInterval(tossInterval);
       setTossing(false);
       setMessage(
         firstPlayer === 0
           ? "Player 1 (Green Station): Your turn"
           : "Player 2 (Blue Station): Your turn"
       );
-    }, 2000);
+    }, coinTossTime);
 
-    // Generate terrain and randomly position stations.
+    // Generate terrain and randomly position the stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
+    // Player 1: between 50 and (canvasWidth/2 - 150)
+    // Player 2: between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
+    // Compute y positions from terrain.
     const leftY = newTerrain[leftX] - STATION_HEIGHT;
     const rightXCenter = rightX + STATION_WIDTH / 2;
     const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
@@ -144,10 +152,12 @@ const App: React.FC = () => {
   // --- Utility Functions ---
 
   // Generate terrain using control points and cosine interpolation.
-  // We generate between 2 and 21 control points (1 to 20 hills). Each control point has a 30%
-  // chance to be "extreme"—either a deep dip (as low as 50) or a tall hill (up near the bottom of the canvas).
+  // We generate between 2 and 21 control points (representing 1 to 20 hills).
+  // Each control point has a 30% chance to be extreme: either a deep dip (as low as 50)
+  // or a tall hill (up near the bottom of the canvas). Cosine interpolation is used
+  // so the terrain is smooth and continuous across the entire width.
   const generateTerrain = (width: number): number[] => {
-    const numPoints = getRandomInt(2, 21);
+    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numPoints - 1);
     for (let i = 0; i < numPoints; i++) {
@@ -156,11 +166,12 @@ const App: React.FC = () => {
       if (Math.random() < 0.3) {
         // Extreme point: 50% chance deep dip, 50% chance tall hill.
         if (Math.random() < 0.5) {
-          y = getRandomInt(50, TERRAIN_MIN_Y - 1);
+          y = getRandomInt(50, TERRAIN_MIN_Y - 1); // deep dip
         } else {
-          y = getRandomInt(TERRAIN_MAX_Y + 1, canvasHeight);
+          y = getRandomInt(TERRAIN_MAX_Y + 1, canvasHeight); // tall hill
         }
       } else {
+        // Normal hill.
         y = getRandomInt(TERRAIN_MIN_Y, TERRAIN_MAX_Y);
       }
       controlPoints.push({ x, y });
@@ -203,6 +214,7 @@ const App: React.FC = () => {
   };
 
   // Draw the canon for a station.
+  // For a station on the right side, mirror the angle so that the canon points to the left.
   const drawCanon = (ctx: CanvasRenderingContext2D, station: Station, angleDeg: number) => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
@@ -228,7 +240,8 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game: sky, terrain, stations, canons, and (if applicable) missile.
+  // Draw the game state: sky, terrain, stations, canons, and (if applicable) missile.
+  // (The missile preview has been removed so that only the canon is visible until firing.)
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -269,7 +282,7 @@ const App: React.FC = () => {
     ctx.fillText("Player 1", left.x + left.width / 2, left.y + left.height + 20);
     ctx.fillText("Player 2", right.x + right.width / 2, right.y + right.height + 20);
 
-    // Draw canons.
+    // Draw canons using each player's stored angle.
     const leftAngle = parseFloat(playerSettings[0].angle);
     const rightAngle = parseFloat(playerSettings[1].angle);
     const validLeftAngle = !isNaN(leftAngle) ? leftAngle : 45;
@@ -287,6 +300,8 @@ const App: React.FC = () => {
   };
 
   // --- Missile Simulation ---
+  // Launch the missile from the canon tip with consistent velocity.
+  // The check for off-screen now only cancels if the missile goes off left/right or below the bottom.
   const simulateMissile = (
     startPos: Point,
     simAngleRad: number,
@@ -303,7 +318,7 @@ const App: React.FC = () => {
 
       drawGame(terrain, leftStation, rightStation, missilePos);
 
-      // Check left/right boundaries and bottom boundary only.
+      // Allow missile to go above the top (so gravity can bring it down) but cancel if off left/right or below bottom.
       if (missileX < 0 || missileX >= canvasWidth || missileY >= canvasHeight) {
         cancelAnimationFrame(animationFrameId);
         setFiring(false);
@@ -407,14 +422,21 @@ const App: React.FC = () => {
     ]);
     setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
     setTossing(true);
+    const coinTossTime = getRandomInt(2000, 5000);
+    const tossInterval = setInterval(() => {
+      const randomChoice = getRandomInt(0, 1);
+      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+    }, 300);
     setTimeout(() => {
+      clearInterval(tossInterval);
       setTossing(false);
       setMessage(
         firstPlayer === 0
           ? "Player 1 (Green Station): Your turn"
           : "Player 2 (Blue Station): Your turn"
       );
-    }, 2000);
+    }, coinTossTime);
+
     const newTerrain = generateTerrain(canvasWidth);
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
@@ -468,19 +490,24 @@ const App: React.FC = () => {
       setMessage("Invalid power. Please enter a value between 0 and 500.");
       return;
     }
-    setFiring(true);
-    setMessage(
-      `Player ${currentPlayer === 0 ? "1" : "2"} firing at ${playerSettings[currentPlayer].angle}° with power ${playerSettings[currentPlayer].power}.`
-    );
+    // Place missile at the cannon tip and show it briefly before launching.
     const rawAngle = parseFloat(playerSettings[currentPlayer].angle);
-    const simAngleRad =
-      currentPlayer === 0
-        ? (rawAngle * Math.PI) / 180
-        : ((180 - rawAngle) * Math.PI) / 180;
     const firingStation = currentPlayer === 0 ? leftStation : rightStation;
-    const enemyStation = currentPlayer === 0 ? rightStation : leftStation;
     const startPos = getCanonTip(firingStation, rawAngle);
-    simulateMissile(startPos, simAngleRad, enemyStation, power);
+    // Draw the missile at the tip.
+    drawGame(terrain, leftStation, rightStation, startPos);
+    setTimeout(() => {
+      setFiring(true);
+      setMessage(
+        `Player ${currentPlayer === 0 ? "1" : "2"} firing at ${playerSettings[currentPlayer].angle}° with power ${playerSettings[currentPlayer].power}.`
+      );
+      const simAngleRad =
+        currentPlayer === 0
+          ? (rawAngle * Math.PI) / 180
+          : ((180 - rawAngle) * Math.PI) / 180;
+      const enemyStation = currentPlayer === 0 ? rightStation : leftStation;
+      simulateMissile(startPos, simAngleRad, enemyStation, power);
+    }, 500);
   };
 
   const handleAngleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
