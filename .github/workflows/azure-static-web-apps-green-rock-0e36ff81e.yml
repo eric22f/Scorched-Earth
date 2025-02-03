@@ -44,7 +44,7 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations ######
           app_location: "."  # 🔥 Since we are already inside scorched-earth, this is now "."
-          output_location: "build"  # 🔥 React build output stays the same
+          output_location: "dist"  # 🔥 React build output stays the same
           # api_location: "api"  # Uncomment if you have an API backend
           ###### End of Repository/Build Configurations ######
 
