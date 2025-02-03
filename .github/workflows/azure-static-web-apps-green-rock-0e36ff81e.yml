@@ -43,8 +43,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "client"  # <-- Change this to match your React app's folder
-          output_location: "client/build"  # <-- This must match your React build output
+          app_location: "scorched-earth"  # <-- Change this to match your React app's folder
+          output_location: "scorched-earth/build"  # <-- This must match your React build output
           # api_location: "api" # Uncomment if you have a backend API
           ###### End of Repository/Build Configurations ######
 
