@@ -75,7 +75,7 @@ const App: React.FC = () => {
   const [message, setMessage] = useState<string>("");
   const [firing, setFiring] = useState<boolean>(false); // disables input while missile is in flight
   const [gameOver, setGameOver] = useState<boolean>(false);
-  // New state to hide inputs during the coin toss.
+  // New state to hide inputs during the coin toss
   const [tossing, setTossing] = useState<boolean>(false);
 
   // --- Update Tab Title Based on Turn or Game Over ---
@@ -87,11 +87,11 @@ const App: React.FC = () => {
     }
   }, [currentPlayer, gameOver]);
 
-  // --- New Game Setup with Enhanced Coin Toss ---
+  // --- New Game Setup with Enhanced Coin Toss (Spinner) ---
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
-    // Randomize first player.
+    // Randomize first player
     const firstPlayer = getRandomInt(0, 1);
     setCurrentPlayer(firstPlayer);
     setInputStep("angle");
@@ -101,10 +101,13 @@ const App: React.FC = () => {
     ]);
     // Begin coin toss: hide inputs during toss.
     setTossing(true);
+    // Use a spinner that cycles through characters.
+    const spinnerSymbols = ["|", "/", "-", "\\"];
+    let spinnerIndex = 0;
     const coinTossTime = getRandomInt(2000, 5000); // toss lasts between 2 and 5 seconds
     const tossInterval = setInterval(() => {
-      const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"} ←`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerSymbols.length;
+      setMessage(`Coin toss: ${spinnerSymbols[spinnerIndex]}`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
@@ -119,6 +122,8 @@ const App: React.FC = () => {
     // Generate terrain and randomly position stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
+    // Player 1: between 50 and (canvasWidth/2 - 150)
+    // Player 2: between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
     // Compute y positions from terrain.
@@ -139,7 +144,7 @@ const App: React.FC = () => {
     startNewGame();
   }, [canvasWidth]);
 
-  // Redraw when player settings or turn changes (if not firing).
+  // Redraw when player settings or turn changes (and not firing).
   useEffect(() => {
     if (!firing) {
       drawGame(terrain, leftStation, rightStation, null);
@@ -150,9 +155,8 @@ const App: React.FC = () => {
   // --- Utility Functions ---
 
   // Generate terrain using control points and cosine interpolation.
-  // We generate between 2 and 21 control points (representing 1 to 20 hills).
+  // We generate between 2 and 21 control points (1 to 20 hills).
   // Each control point has a 30% chance to be extreme (either a deep dip or a tall hill).
-  // This interpolation spans the entire width.
   const generateTerrain = (width: number): number[] => {
     const numPoints = getRandomInt(2, 21);
     const controlPoints: { x: number; y: number }[] = [];
@@ -171,6 +175,7 @@ const App: React.FC = () => {
       }
       controlPoints.push({ x, y });
     }
+    // Ensure the last control point is exactly at x = width.
     controlPoints[controlPoints.length - 1].x = width;
     const terrainArr = new Array(width);
     for (let i = 0; i < controlPoints.length - 1; i++) {
@@ -231,7 +236,7 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game state: sky, terrain, stations, canons, and missile.
+  // Draw the game: sky, terrain, stations, canons, and missile.
   // If not firing, always draw the missile preview attached to the active cannon.
   const drawGame = (
     terrainArr: number[],
@@ -258,9 +263,9 @@ const App: React.FC = () => {
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = "darkgreen"; // Player 1
+    ctx.fillStyle = "darkgreen"; // Player 1 (left)
     ctx.fillRect(left.x, left.y, left.width, left.height);
-    ctx.fillStyle = "navy"; // Player 2
+    ctx.fillStyle = "navy"; // Player 2 (right)
     ctx.fillRect(right.x, right.y, right.width, right.height);
 
     ctx.fillStyle = "white";
@@ -294,6 +299,7 @@ const App: React.FC = () => {
   };
 
   // --- Missile Simulation ---
+  // Launch the missile from the cannon tip with a slower effective speed (using a simFactor)
   const simulateMissile = (
     startPos: Point,
     simAngleRad: number,
@@ -302,14 +308,15 @@ const App: React.FC = () => {
   ) => {
     let t = 0;
     let animationFrameId: number;
+    const simFactor = 0.5; // Slow down the missile for visibility.
     const animate = () => {
-      const missileX = startPos.x + velocity * Math.cos(simAngleRad) * t;
-      const missileY = startPos.y - velocity * Math.sin(simAngleRad) * t + 0.5 * GRAVITY * t * t;
+      const missileX = startPos.x + velocity * simFactor * Math.cos(simAngleRad) * t;
+      const missileY = startPos.y - velocity * simFactor * Math.sin(simAngleRad) * t + 0.5 * GRAVITY * t * t;
       const missilePos: Point = { x: missileX, y: missileY };
 
       drawGame(terrain, leftStation, rightStation, missilePos);
 
-      // Allow missileY to be negative so that it can arc downward.
+      // Allow missileY to go negative (off the top) so gravity can bring it back down.
       if (missileX < 0 || missileX >= canvasWidth || missileY >= canvasHeight) {
         cancelAnimationFrame(animationFrameId);
         setFiring(false);
@@ -358,7 +365,6 @@ const App: React.FC = () => {
       ctx.beginPath();
       ctx.arc(explosionPos.x, explosionPos.y, EXPLOSION_RADIUS, 0, Math.PI * 2);
       ctx.fill();
-
       frames++;
       if (frames < maxFrames) {
         requestAnimationFrame(explosionAnimation);
@@ -382,7 +388,6 @@ const App: React.FC = () => {
         setFiring(false);
       }
     };
-
     explosionAnimation();
   };
 
@@ -409,12 +414,14 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
+    setMessage(`Coin toss: ${"⟳"}...`); // temporary message
     setTossing(true);
     const coinTossTime = getRandomInt(2000, 5000);
+    const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let spinnerIndex = 0;
     const tossInterval = setInterval(() => {
-      const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"} ←`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerSymbols.length;
+      setMessage(`Coin toss: ${spinnerSymbols[spinnerIndex]}`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
@@ -479,7 +486,7 @@ const App: React.FC = () => {
       setMessage("Invalid power. Please enter a value between 0 and 500.");
       return;
     }
-    // Show missile at cannon tip for 500ms before launching.
+    // Show missile at the cannon tip for 500ms before launching.
     const rawAngle = parseFloat(playerSettings[currentPlayer].angle);
     const firingStation = currentPlayer === 0 ? leftStation : rightStation;
     const startPos = getCanonTip(firingStation, rawAngle);
@@ -494,6 +501,7 @@ const App: React.FC = () => {
           ? (rawAngle * Math.PI) / 180
           : ((180 - rawAngle) * Math.PI) / 180;
       const enemyStation = currentPlayer === 0 ? rightStation : leftStation;
+      // Slow down missile simulation for visibility using a factor.
       simulateMissile(startPos, simAngleRad, enemyStation, power);
     }, 500);
   };
