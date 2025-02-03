@@ -99,7 +99,7 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Start coin toss animation for a random duration between 2 and 5 seconds.
+    // Start coin toss animation using a spinner.
     setTossing(true);
     const coinTossTime = getRandomInt(2000, 5000);
     const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -118,10 +118,10 @@ const App: React.FC = () => {
       );
     }, coinTossTime);
 
-    // Generate terrain and randomly position the stations.
+    // Generate terrain and position stations.
     const newTerrain = generateTerrain(canvasWidth);
-    // Update station positioning: sample the terrain over the station's width
-    // and use the maximum value plus a margin to position the station.
+    // Updated station positioning: sample the terrain over the station's width,
+    // use the maximum terrain height within that slice, and subtract the station height plus a margin.
     const stationMargin = 10;
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(
@@ -160,7 +160,7 @@ const App: React.FC = () => {
 
   // Generate terrain using control points and cosine interpolation.
   const generateTerrain = (width: number): number[] => {
-    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
+    const numPoints = getRandomInt(2, 21);
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numPoints - 1);
     for (let i = 0; i < numPoints; i++) {
@@ -347,7 +347,7 @@ const App: React.FC = () => {
     animationFrameId = requestAnimationFrame(animate);
   };
 
-  // --- Explosion Animation (unchanged) ---
+  // --- Explosion Animation and Crater Effect ---
   const explosion = (
     explosionPos: Point,
     enemyStation: Station,
@@ -371,6 +371,21 @@ const App: React.FC = () => {
       if (frames < maxFrames) {
         requestAnimationFrame(explosionAnimation);
       } else {
+        // Apply crater effect to the terrain.
+        const craterRadius = EXPLOSION_RADIUS / 2; // crater radius is half the explosion radius
+        const newTerrain = [...terrain];
+        const startX = Math.max(0, Math.floor(explosionPos.x - craterRadius));
+        const endX = Math.min(newTerrain.length - 1, Math.ceil(explosionPos.x + craterRadius));
+        for (let x = startX; x <= endX; x++) {
+          const d = Math.abs(x - explosionPos.x);
+          if (d < craterRadius) {
+            // Calculate how much to lower the terrain based on distance.
+            const delta = (EXPLOSION_RADIUS / 2) * (1 - d / craterRadius);
+            newTerrain[x] = Math.min(newTerrain[x] + delta, canvasHeight);
+          }
+        }
+        setTerrain(newTerrain);
+
         const enemyCenter = {
           x: enemyStation.x + enemyStation.width / 2,
           y: enemyStation.y + enemyStation.height / 2,
@@ -404,7 +419,7 @@ const App: React.FC = () => {
     drawGame(terrain, leftStation, rightStation, null);
   };
 
-  // --- New Game Reset with Updated Coin Toss Spinner ---
+  // --- New Game Reset with Updated Coin Toss Spinner and Updated Station Positioning ---
   const resetGame = () => {
     setGameOver(false);
     setFiring(false);
@@ -441,7 +456,7 @@ const App: React.FC = () => {
       Math.floor(canvasWidth / 2) + 150,
       canvasWidth - 50 - STATION_WIDTH
     );
-    // Updated station positioning to ensure the station is fully on top of the terrain.
+    // Updated station positioning to ensure they are fully on top of the terrain.
     const stationMargin = 10;
     const leftTerrainSection = newTerrain.slice(leftX, leftX + STATION_WIDTH);
     const leftTerrainY = Math.max(...leftTerrainSection);
