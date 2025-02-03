@@ -19,7 +19,7 @@ const STATION_HEIGHT = 15;
 const GRAVITY = 100; // pixels per second²
 const MISSILE_RADIUS = 5;
 const EXPLOSION_RADIUS = 20;
-const DT = 0.05; // simulation time step (in seconds)
+const DT = 0.05; // simulation time step in seconds
 
 // Canon constants
 const CANON_LENGTH = 30; // length of the canon barrel
@@ -50,7 +50,7 @@ const App: React.FC = () => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   };
 
-  // Terrain and station positions.
+  // --- Terrain and Station Positions ---
   const [terrain, setTerrain] = useState<number[]>([]);
   const [leftStation, setLeftStation] = useState<Station>({
     x: 50,
@@ -65,7 +65,7 @@ const App: React.FC = () => {
     height: STATION_HEIGHT,
   });
 
-  // Game turn and input state.
+  // --- Game Turn and Input State ---
   const [currentPlayer, setCurrentPlayer] = useState<number>(0); // 0: left, 1: right
   const [inputStep, setInputStep] = useState<InputStep>("angle");
   const [playerSettings, setPlayerSettings] = useState<PlayerSettings[]>([
@@ -76,7 +76,7 @@ const App: React.FC = () => {
   const [firing, setFiring] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
 
-  // --- Update the Tab Title Based on Turn or Game Over ---
+  // --- Update Tab Title ---
   useEffect(() => {
     if (gameOver) {
       document.title = "Scorched Earth: Game Over";
@@ -86,11 +86,10 @@ const App: React.FC = () => {
   }, [currentPlayer, gameOver]);
 
   // --- New Game Setup ---
-  // When the game starts or resets, randomize the first player using a "coin toss" style message.
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
-    // Randomize who goes first (0 or 1)
+    // Randomize first player
     const firstPlayer = getRandomInt(0, 1);
     setCurrentPlayer(firstPlayer);
     setInputStep("angle");
@@ -98,9 +97,7 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Set an initial "coin toss" message.
     setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
-    // After 2 seconds, update the message to indicate the player's turn.
     setTimeout(() => {
       setMessage(
         firstPlayer === 0
@@ -109,12 +106,13 @@ const App: React.FC = () => {
       );
     }, 2000);
 
-    // Generate terrain and randomly position the stations.
+    // Generate terrain and randomly position stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
+    // Player 1: between 50 and (canvasWidth/2 - 150)
+    // Player 2: between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
-    // Compute y positions from terrain.
     const leftY = newTerrain[leftX] - STATION_HEIGHT;
     const rightXCenter = rightX + STATION_WIDTH / 2;
     const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
@@ -127,12 +125,12 @@ const App: React.FC = () => {
     drawGame(newTerrain, newLeftStation, newRightStation, null);
   };
 
-  // Start a new game on mount.
+  // Start a new game on mount and when canvasWidth changes.
   useEffect(() => {
     startNewGame();
   }, [canvasWidth]);
 
-  // Redraw when player settings or turn changes (and not firing).
+  // Redraw when player settings or turn changes (if not firing).
   useEffect(() => {
     if (!firing) {
       drawGame(terrain, leftStation, rightStation, null);
@@ -142,26 +140,34 @@ const App: React.FC = () => {
 
   // --- Utility Functions ---
 
-  // Generate terrain with smooth, rolling hills.
-  // We choose a random number of control points (1 to 20 hills) and use cosine interpolation.
-  // For each control point, there’s a 20% chance it will be "tall" (up to canvasHeight) instead of normal.
+  // Generate terrain using control points and cosine interpolation.
+  // We generate between 2 and 21 control points (representing 1 to 20 hills).
+  // Each control point has a 30% chance to be extreme: either a deep dip (between 50 and TERRAIN_MIN_Y-1)
+  // or a tall hill (between TERRAIN_MAX_Y+1 and canvasHeight).
   const generateTerrain = (width: number): number[] => {
-    const numHills = getRandomInt(1, 20);
+    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
     const controlPoints: { x: number; y: number }[] = [];
-    const segmentLength = width / (numHills + 1);
-    for (let i = 0; i <= numHills; i++) {
+    const segmentLength = width / (numPoints - 1);
+    for (let i = 0; i < numPoints; i++) {
       const x = i * segmentLength;
       let y: number;
-      if (Math.random() < 0.2) {
-        // Tall hill: y between TERRAIN_MAX_Y and canvasHeight.
-        y = getRandomInt(TERRAIN_MAX_Y, canvasHeight);
+      if (Math.random() < 0.3) {
+        // Extreme point: 50% chance for a deep dip, 50% chance for a tall hill.
+        if (Math.random() < 0.5) {
+          y = getRandomInt(50, TERRAIN_MIN_Y - 1); // deep dip
+        } else {
+          y = getRandomInt(TERRAIN_MAX_Y + 1, canvasHeight);
+        }
       } else {
         // Normal hill.
         y = getRandomInt(TERRAIN_MIN_Y, TERRAIN_MAX_Y);
       }
       controlPoints.push({ x, y });
     }
-    // Interpolate between control points using cosine interpolation.
+    // Ensure the last control point is exactly at x = width.
+    controlPoints[controlPoints.length - 1].x = width;
+
+    // Interpolate between control points.
     const terrainArr = new Array(width);
     for (let i = 0; i < controlPoints.length - 1; i++) {
       const p0 = controlPoints[i];
@@ -222,7 +228,7 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game: sky, terrain, stations, canons, and (if applicable) missile.
+  // Draw the game state: sky, terrain, stations, canons, and (if applicable) missile.
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -256,7 +262,7 @@ const App: React.FC = () => {
     ctx.fillStyle = "navy"; // Player 2 (right)
     ctx.fillRect(right.x, right.y, right.width, right.height);
 
-    // Draw station labels (centered below the station).
+    // Draw station labels ("Player 1" / "Player 2"), centered below the stations.
     ctx.fillStyle = "white";
     ctx.font = "16px sans-serif";
     ctx.textAlign = "center";
@@ -390,7 +396,7 @@ const App: React.FC = () => {
   const resetGame = () => {
     setGameOver(false);
     setFiring(false);
-    // Randomize first player (simulate a coin toss)
+    // Randomize first player with a coin toss.
     const firstPlayer = getRandomInt(0, 1);
     setCurrentPlayer(firstPlayer);
     setInputStep("angle");
