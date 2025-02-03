@@ -26,22 +26,26 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          cd client  # Go into the React app directory
+          npm install
 
       - name: Build React App
-        run: npm run build
+        run: |
+          cd client  # Ensure we are in the right directory
+          npm run build
 
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_GREEN_ROCK_0E36FF81E }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations (i.e., PR comments)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "/" # Path to the React app source code
-          output_location: "build" # Path to the built app (default for React)
-          # api_location: "api" # Uncomment if using an API backend
+          app_location: "client"  # <-- Change this to match your React app's folder
+          output_location: "client/build"  # <-- This must match your React build output
+          # api_location: "api" # Uncomment if you have a backend API
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
