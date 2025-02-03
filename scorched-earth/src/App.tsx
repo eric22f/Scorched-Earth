@@ -588,7 +588,7 @@ const App: React.FC = () => {
       setMessage("Invalid angle. Please enter a value between 0 and 90.");
       return;
     }
-    setMessage(`Angle entered: ${angle}°`);
+    setMessage(`Player ${currentPlayer === 0 ? "1" : "2"} - Firing Angle: ${angle}°`);
     setInputStep("power");
   };
 
