@@ -43,8 +43,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "/"
-          output_location: "/"
+          app_location: "scorched-earth/dist"
+          output_location: "scorched-earth/dist"
           # api_location: "api"  # Uncomment if you have an API backend
           ###### End of Repository/Build Configurations ######
 
