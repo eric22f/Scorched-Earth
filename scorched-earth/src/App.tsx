@@ -87,7 +87,7 @@ const App: React.FC = () => {
     }
   }, [currentPlayer, gameOver]);
 
-  // --- New Game Setup with Coin Toss Animation ---
+  // --- New Game Setup with Updated Coin Toss Animation ---
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
@@ -99,12 +99,14 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Start coin toss animation for a random duration between 2 and 5 seconds.
+    // Updated coin toss spinner animation:
     setTossing(true);
-    const coinTossTime = getRandomInt(2000, 5000);
+    const coinTossTime = getRandomInt(2000, 5000); // toss lasts between 2 and 5 seconds
+    const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let spinnerIndex = 0;
     const tossInterval = setInterval(() => {
-      const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerSymbols.length;
+      setMessage(`Coin toss: ${spinnerSymbols[spinnerIndex]}`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
@@ -119,16 +121,27 @@ const App: React.FC = () => {
     // Generate terrain and randomly position the stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
-    // Player 1: between 50 and (canvasWidth/2 - 150)
-    // Player 2: between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
-    const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
+    const rightX = getRandomInt(
+      Math.floor(canvasWidth / 2) + 150,
+      canvasWidth - 50 - STATION_WIDTH
+    );
     // Compute y positions from terrain.
     const leftY = newTerrain[leftX] - STATION_HEIGHT;
     const rightXCenter = rightX + STATION_WIDTH / 2;
     const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
-    const newLeftStation: Station = { x: leftX, y: leftY, width: STATION_WIDTH, height: STATION_HEIGHT };
-    const newRightStation: Station = { x: rightX, y: rightY, width: STATION_WIDTH, height: STATION_HEIGHT };
+    const newLeftStation: Station = {
+      x: leftX,
+      y: leftY,
+      width: STATION_WIDTH,
+      height: STATION_HEIGHT,
+    };
+    const newRightStation: Station = {
+      x: rightX,
+      y: rightY,
+      width: STATION_WIDTH,
+      height: STATION_HEIGHT,
+    };
 
     setTerrain(newTerrain);
     setLeftStation(newLeftStation);
@@ -152,33 +165,25 @@ const App: React.FC = () => {
   // --- Utility Functions ---
 
   // Generate terrain using control points and cosine interpolation.
-  // We generate between 2 and 21 control points (representing 1 to 20 hills).
-  // Each control point has a 30% chance to be extreme: either a deep dip (as low as 50)
-  // or a tall hill (up near the bottom of the canvas). Cosine interpolation is used
-  // so the terrain is smooth and continuous across the entire width.
   const generateTerrain = (width: number): number[] => {
-    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
+    const numPoints = getRandomInt(2, 21);
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numPoints - 1);
     for (let i = 0; i < numPoints; i++) {
       const x = i * segmentLength;
       let y: number;
       if (Math.random() < 0.3) {
-        // Extreme point: 50% chance deep dip, 50% chance tall hill.
         if (Math.random() < 0.5) {
-          y = getRandomInt(50, TERRAIN_MIN_Y - 1); // deep dip
+          y = getRandomInt(50, TERRAIN_MIN_Y - 1);
         } else {
-          y = getRandomInt(TERRAIN_MAX_Y + 1, canvasHeight); // tall hill
+          y = getRandomInt(TERRAIN_MAX_Y + 1, canvasHeight);
         }
       } else {
-        // Normal hill.
         y = getRandomInt(TERRAIN_MIN_Y, TERRAIN_MAX_Y);
       }
       controlPoints.push({ x, y });
     }
-    // Ensure the last control point is exactly at x = width.
     controlPoints[controlPoints.length - 1].x = width;
-
     const terrainArr = new Array(width);
     for (let i = 0; i < controlPoints.length - 1; i++) {
       const p0 = controlPoints[i];
@@ -191,7 +196,6 @@ const App: React.FC = () => {
         terrainArr[x] = p0.y * (1 - t2) + p1.y * t2;
       }
     }
-    // Fill any undefined indices.
     for (let x = 0; x < width; x++) {
       if (terrainArr[x] === undefined) {
         terrainArr[x] = terrainArr[width - 1];
@@ -200,7 +204,7 @@ const App: React.FC = () => {
     return terrainArr;
   };
 
-  // Get terrain height at x using linear interpolation.
+  // Get terrain height at a given x using linear interpolation.
   const getTerrainHeight = (terrainArr: number[], x: number): number => {
     if (x < 0 || x >= terrainArr.length - 1) {
       return canvasHeight;
@@ -214,7 +218,6 @@ const App: React.FC = () => {
   };
 
   // Draw the canon for a station.
-  // For a station on the right side, mirror the angle so that the canon points to the left.
   const drawCanon = (ctx: CanvasRenderingContext2D, station: Station, angleDeg: number) => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
@@ -240,8 +243,7 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game state: sky, terrain, stations, canons, and (if applicable) missile.
-  // (The missile preview has been removed so that only the canon is visible until firing.)
+  // Draw the game scene.
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -269,20 +271,20 @@ const App: React.FC = () => {
     ctx.closePath();
     ctx.fill();
 
-    // Draw stations with their respective colors.
+    // Draw stations.
     ctx.fillStyle = "darkgreen"; // Player 1 (left)
     ctx.fillRect(left.x, left.y, left.width, left.height);
     ctx.fillStyle = "navy"; // Player 2 (right)
     ctx.fillRect(right.x, right.y, right.width, right.height);
 
-    // Draw station labels (centered below the stations).
+    // Draw station labels.
     ctx.fillStyle = "white";
     ctx.font = "16px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Player 1", left.x + left.width / 2, left.y + left.height + 20);
     ctx.fillText("Player 2", right.x + right.width / 2, right.y + right.height + 20);
 
-    // Draw canons using each player's stored angle.
+    // Draw canons.
     const leftAngle = parseFloat(playerSettings[0].angle);
     const rightAngle = parseFloat(playerSettings[1].angle);
     const validLeftAngle = !isNaN(leftAngle) ? leftAngle : 45;
@@ -299,9 +301,7 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Missile Simulation ---
-  // Launch the missile from the canon tip with consistent velocity.
-  // The check for off-screen now only cancels if the missile goes off left/right or below the bottom.
+  // --- Missile Simulation (unchanged) ---
   const simulateMissile = (
     startPos: Point,
     simAngleRad: number,
@@ -310,7 +310,6 @@ const App: React.FC = () => {
   ) => {
     let t = 0;
     let animationFrameId: number;
-
     const animate = () => {
       const missileX = startPos.x + velocity * Math.cos(simAngleRad) * t;
       const missileY = startPos.y - velocity * Math.sin(simAngleRad) * t + 0.5 * GRAVITY * t * t;
@@ -353,15 +352,18 @@ const App: React.FC = () => {
     animationFrameId = requestAnimationFrame(animate);
   };
 
-  // --- Explosion Animation and Hit Detection ---
-  const explosion = (explosionPos: Point, enemyStation: Station, directHit: boolean = false) => {
+  // --- Explosion Animation (unchanged) ---
+  const explosion = (
+    explosionPos: Point,
+    enemyStation: Station,
+    directHit: boolean = false
+  ) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     let frames = 0;
     const maxFrames = 10;
-
     const explosionAnimation = () => {
       drawGame(terrain, leftStation, rightStation, null);
       ctx.fillStyle = "red";
@@ -408,11 +410,10 @@ const App: React.FC = () => {
     drawGame(terrain, leftStation, rightStation, null);
   };
 
-  // --- New Game Reset ---
+  // --- New Game Reset (with updated coin toss spinner) ---
   const resetGame = () => {
     setGameOver(false);
     setFiring(false);
-    // Randomize first player with a coin toss.
     const firstPlayer = getRandomInt(0, 1);
     setCurrentPlayer(firstPlayer);
     setInputStep("angle");
@@ -420,12 +421,15 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
+    // Updated coin toss spinner animation:
+    setMessage(`Coin toss: ⟳...`);
     setTossing(true);
     const coinTossTime = getRandomInt(2000, 5000);
+    const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let spinnerIndex = 0;
     const tossInterval = setInterval(() => {
-      const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+      spinnerIndex = (spinnerIndex + 1) % spinnerSymbols.length;
+      setMessage(`Coin toss: ${spinnerSymbols[spinnerIndex]}`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
