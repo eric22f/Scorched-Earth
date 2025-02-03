@@ -19,7 +19,7 @@ const STATION_HEIGHT = 15;
 const GRAVITY = 100; // pixels per second²
 const MISSILE_RADIUS = 5;
 const EXPLOSION_RADIUS = 20;
-const DT = 0.05; // simulation time step (in seconds)
+const DT = 0.05; // simulation time step in seconds
 
 // Canon constants
 const CANON_LENGTH = 30; // length of the canon barrel
@@ -75,10 +75,10 @@ const App: React.FC = () => {
   const [message, setMessage] = useState<string>("");
   const [firing, setFiring] = useState<boolean>(false); // disables input while missile is in flight
   const [gameOver, setGameOver] = useState<boolean>(false);
-  // New state to hide inputs during the coin toss
+  // New state to hide inputs during the coin toss.
   const [tossing, setTossing] = useState<boolean>(false);
 
-  // --- Update Tab Title ---
+  // --- Update Tab Title Based on Turn or Game Over ---
   useEffect(() => {
     if (gameOver) {
       document.title = "Scorched Earth: Game Over";
@@ -87,11 +87,11 @@ const App: React.FC = () => {
     }
   }, [currentPlayer, gameOver]);
 
-  // --- New Game Setup with Coin Toss Animation ---
+  // --- New Game Setup with Enhanced Coin Toss ---
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
-    // Randomize first player
+    // Randomize first player.
     const firstPlayer = getRandomInt(0, 1);
     setCurrentPlayer(firstPlayer);
     setInputStep("angle");
@@ -99,12 +99,12 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Start coin toss animation for a random duration between 2 and 5 seconds.
+    // Begin coin toss: hide inputs during toss.
     setTossing(true);
-    const coinTossTime = getRandomInt(2000, 5000);
+    const coinTossTime = getRandomInt(2000, 5000); // toss lasts between 2 and 5 seconds
     const tossInterval = setInterval(() => {
       const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"} ←`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
@@ -116,11 +116,9 @@ const App: React.FC = () => {
       );
     }, coinTossTime);
 
-    // Generate terrain and randomly position the stations.
+    // Generate terrain and randomly position stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
-    // Player 1: between 50 and (canvasWidth/2 - 150)
-    // Player 2: between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
     // Compute y positions from terrain.
@@ -141,7 +139,7 @@ const App: React.FC = () => {
     startNewGame();
   }, [canvasWidth]);
 
-  // Redraw when player settings or turn changes (and not firing).
+  // Redraw when player settings or turn changes (if not firing).
   useEffect(() => {
     if (!firing) {
       drawGame(terrain, leftStation, rightStation, null);
@@ -152,12 +150,11 @@ const App: React.FC = () => {
   // --- Utility Functions ---
 
   // Generate terrain using control points and cosine interpolation.
-  // We generate between 2 and 21 control points (representing 1 to 20 hills).
-  // Each control point has a 30% chance to be extreme: either a deep dip (as low as 50)
-  // or a tall hill (up near the bottom of the canvas). Cosine interpolation is used
-  // so the terrain is smooth and continuous across the entire width.
+  // We generate between 2 and 21 control points (1 to 20 hills).
+  // Each control point has a 30% chance to be extreme (either a deep dip or a tall hill).
+  // This interpolation spans the entire width.
   const generateTerrain = (width: number): number[] => {
-    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
+    const numPoints = getRandomInt(2, 21);
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numPoints - 1);
     for (let i = 0; i < numPoints; i++) {
@@ -200,7 +197,7 @@ const App: React.FC = () => {
     return terrainArr;
   };
 
-  // Get terrain height at x using linear interpolation.
+  // Get terrain height at a given x using linear interpolation.
   const getTerrainHeight = (terrainArr: number[], x: number): number => {
     if (x < 0 || x >= terrainArr.length - 1) {
       return canvasHeight;
@@ -214,7 +211,7 @@ const App: React.FC = () => {
   };
 
   // Draw the canon for a station.
-  // For a station on the right side, mirror the angle so that the canon points to the left.
+  // For a station on the right side, mirror the angle so that the canon points left.
   const drawCanon = (ctx: CanvasRenderingContext2D, station: Station, angleDeg: number) => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
@@ -240,8 +237,8 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game state: sky, terrain, stations, canons, and (if applicable) missile.
-  // (The missile preview has been removed so that only the canon is visible until firing.)
+  // Draw the game state: sky, terrain, stations, canons, and missile.
+  // Now, if not firing, always draw the missile preview attached to the active cannon.
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -269,7 +266,7 @@ const App: React.FC = () => {
     ctx.closePath();
     ctx.fill();
 
-    // Draw stations with their respective colors.
+    // Draw stations with colors.
     ctx.fillStyle = "darkgreen"; // Player 1 (left)
     ctx.fillRect(left.x, left.y, left.width, left.height);
     ctx.fillStyle = "navy"; // Player 2 (right)
@@ -282,7 +279,7 @@ const App: React.FC = () => {
     ctx.fillText("Player 1", left.x + left.width / 2, left.y + left.height + 20);
     ctx.fillText("Player 2", right.x + right.width / 2, right.y + right.height + 20);
 
-    // Draw canons using each player's stored angle.
+    // Draw canons.
     const leftAngle = parseFloat(playerSettings[0].angle);
     const rightAngle = parseFloat(playerSettings[1].angle);
     const validLeftAngle = !isNaN(leftAngle) ? leftAngle : 45;
@@ -290,18 +287,29 @@ const App: React.FC = () => {
     drawCanon(ctx, left, validLeftAngle);
     drawCanon(ctx, right, validRightAngle);
 
-    // Draw missile if in flight.
-    if (missilePos) {
+    // Draw missile:
+    // If the missile is in flight (missilePos is provided), draw it.
+    // Otherwise, if not firing, always draw the missile preview attached to the active cannon.
+    if (firing && missilePos) {
       ctx.fillStyle = "red";
       ctx.beginPath();
       ctx.arc(missilePos.x, missilePos.y, MISSILE_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (!firing) {
+      const activeStation = currentPlayer === 0 ? left : right;
+      const activeAngle = parseFloat(playerSettings[currentPlayer].angle);
+      const angleToUse = isNaN(activeAngle) ? 45 : activeAngle;
+      const previewPos = getCanonTip(activeStation, angleToUse);
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(previewPos.x, previewPos.y, MISSILE_RADIUS, 0, Math.PI * 2);
       ctx.fill();
     }
   };
 
   // --- Missile Simulation ---
   // Launch the missile from the canon tip with consistent velocity.
-  // The check for off-screen now only cancels if the missile goes off left/right or below the bottom.
+  // The off-screen check now allows the missile to go above the top.
   const simulateMissile = (
     startPos: Point,
     simAngleRad: number,
@@ -318,7 +326,7 @@ const App: React.FC = () => {
 
       drawGame(terrain, leftStation, rightStation, missilePos);
 
-      // Allow missile to go above the top (so gravity can bring it down) but cancel if off left/right or below bottom.
+      // Cancel only if missile goes off left/right or below the bottom.
       if (missileX < 0 || missileX >= canvasWidth || missileY >= canvasHeight) {
         cancelAnimationFrame(animationFrameId);
         setFiring(false);
@@ -425,7 +433,7 @@ const App: React.FC = () => {
     const coinTossTime = getRandomInt(2000, 5000);
     const tossInterval = setInterval(() => {
       const randomChoice = getRandomInt(0, 1);
-      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"}...`);
+      setMessage(`Coin toss: Player ${randomChoice === 0 ? "1" : "2"} ←`);
     }, 300);
     setTimeout(() => {
       clearInterval(tossInterval);
@@ -490,11 +498,11 @@ const App: React.FC = () => {
       setMessage("Invalid power. Please enter a value between 0 and 500.");
       return;
     }
-    // Place missile at the cannon tip and show it briefly before launching.
+    // Place missile at the top of the cannon (preview) for 500ms, then launch.
     const rawAngle = parseFloat(playerSettings[currentPlayer].angle);
     const firingStation = currentPlayer === 0 ? leftStation : rightStation;
     const startPos = getCanonTip(firingStation, rawAngle);
-    // Draw the missile at the tip.
+    // Show missile at cannon tip.
     drawGame(terrain, leftStation, rightStation, startPos);
     setTimeout(() => {
       setFiring(true);
