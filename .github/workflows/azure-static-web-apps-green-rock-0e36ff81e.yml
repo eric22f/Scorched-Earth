@@ -44,7 +44,7 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations ######
           app_location: "/"
-          output_location: "dist"
+          output_location: "/"
           # api_location: "api"  # Uncomment if you have an API backend
           ###### End of Repository/Build Configurations ######
 
