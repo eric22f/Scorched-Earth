@@ -87,7 +87,7 @@ const App: React.FC = () => {
     }
   }, [currentPlayer, gameOver]);
 
-  // --- New Game Setup with Updated Coin Toss Animation ---
+  // --- New Game Setup with Coin Toss Animation ---
   const startNewGame = () => {
     setGameOver(false);
     setFiring(false);
@@ -99,9 +99,9 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Updated coin toss spinner animation:
+    // Start coin toss animation for a random duration between 2 and 5 seconds.
     setTossing(true);
-    const coinTossTime = getRandomInt(2000, 5000); // toss lasts between 2 and 5 seconds
+    const coinTossTime = getRandomInt(2000, 5000);
     const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     let spinnerIndex = 0;
     const tossInterval = setInterval(() => {
@@ -120,28 +120,22 @@ const App: React.FC = () => {
 
     // Generate terrain and randomly position the stations.
     const newTerrain = generateTerrain(canvasWidth);
-    // Randomize station x-positions:
+    // Update station positioning: sample the terrain over the station's width
+    // and use the maximum value plus a margin to position the station.
+    const stationMargin = 10;
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(
       Math.floor(canvasWidth / 2) + 150,
       canvasWidth - 50 - STATION_WIDTH
     );
-    // Compute y positions from terrain.
-    const leftY = newTerrain[leftX] - STATION_HEIGHT;
-    const rightXCenter = rightX + STATION_WIDTH / 2;
-    const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
-    const newLeftStation: Station = {
-      x: leftX,
-      y: leftY,
-      width: STATION_WIDTH,
-      height: STATION_HEIGHT,
-    };
-    const newRightStation: Station = {
-      x: rightX,
-      y: rightY,
-      width: STATION_WIDTH,
-      height: STATION_HEIGHT,
-    };
+    const leftTerrainSection = newTerrain.slice(leftX, leftX + STATION_WIDTH);
+    const leftTerrainY = Math.max(...leftTerrainSection);
+    const leftY = leftTerrainY - STATION_HEIGHT - stationMargin;
+    const rightTerrainSection = newTerrain.slice(rightX, rightX + STATION_WIDTH);
+    const rightTerrainY = Math.max(...rightTerrainSection);
+    const rightY = rightTerrainY - STATION_HEIGHT - stationMargin;
+    const newLeftStation: Station = { x: leftX, y: leftY, width: STATION_WIDTH, height: STATION_HEIGHT };
+    const newRightStation: Station = { x: rightX, y: rightY, width: STATION_WIDTH, height: STATION_HEIGHT };
 
     setTerrain(newTerrain);
     setLeftStation(newLeftStation);
@@ -166,7 +160,7 @@ const App: React.FC = () => {
 
   // Generate terrain using control points and cosine interpolation.
   const generateTerrain = (width: number): number[] => {
-    const numPoints = getRandomInt(2, 21);
+    const numPoints = getRandomInt(2, 21); // 2 points = 1 hill, 21 points = 20 hills.
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numPoints - 1);
     for (let i = 0; i < numPoints; i++) {
@@ -204,7 +198,7 @@ const App: React.FC = () => {
     return terrainArr;
   };
 
-  // Get terrain height at a given x using linear interpolation.
+  // Get terrain height at x using linear interpolation.
   const getTerrainHeight = (terrainArr: number[], x: number): number => {
     if (x < 0 || x >= terrainArr.length - 1) {
       return canvasHeight;
@@ -243,7 +237,7 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game scene.
+  // Draw the game state.
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -284,7 +278,7 @@ const App: React.FC = () => {
     ctx.fillText("Player 1", left.x + left.width / 2, left.y + left.height + 20);
     ctx.fillText("Player 2", right.x + right.width / 2, right.y + right.height + 20);
 
-    // Draw canons.
+    // Draw cannons.
     const leftAngle = parseFloat(playerSettings[0].angle);
     const rightAngle = parseFloat(playerSettings[1].angle);
     const validLeftAngle = !isNaN(leftAngle) ? leftAngle : 45;
@@ -310,6 +304,7 @@ const App: React.FC = () => {
   ) => {
     let t = 0;
     let animationFrameId: number;
+
     const animate = () => {
       const missileX = startPos.x + velocity * Math.cos(simAngleRad) * t;
       const missileY = startPos.y - velocity * Math.sin(simAngleRad) * t + 0.5 * GRAVITY * t * t;
@@ -364,6 +359,7 @@ const App: React.FC = () => {
     if (!ctx) return;
     let frames = 0;
     const maxFrames = 10;
+
     const explosionAnimation = () => {
       drawGame(terrain, leftStation, rightStation, null);
       ctx.fillStyle = "red";
@@ -387,9 +383,7 @@ const App: React.FC = () => {
           setGameOver(true);
         } else {
           setMessage("Missed! Switching turns...");
-          setTimeout(() => {
-            switchTurn();
-          }, 1000);
+          setTimeout(() => switchTurn(), 1000);
         }
         setFiring(false);
       }
@@ -410,7 +404,7 @@ const App: React.FC = () => {
     drawGame(terrain, leftStation, rightStation, null);
   };
 
-  // --- New Game Reset (with updated coin toss spinner) ---
+  // --- New Game Reset with Updated Coin Toss Spinner ---
   const resetGame = () => {
     setGameOver(false);
     setFiring(false);
@@ -443,10 +437,18 @@ const App: React.FC = () => {
 
     const newTerrain = generateTerrain(canvasWidth);
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
-    const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
-    const leftY = newTerrain[leftX] - STATION_HEIGHT;
-    const rightXCenter = rightX + STATION_WIDTH / 2;
-    const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
+    const rightX = getRandomInt(
+      Math.floor(canvasWidth / 2) + 150,
+      canvasWidth - 50 - STATION_WIDTH
+    );
+    // Updated station positioning to ensure the station is fully on top of the terrain.
+    const stationMargin = 10;
+    const leftTerrainSection = newTerrain.slice(leftX, leftX + STATION_WIDTH);
+    const leftTerrainY = Math.max(...leftTerrainSection);
+    const leftY = leftTerrainY - STATION_HEIGHT - stationMargin;
+    const rightTerrainSection = newTerrain.slice(rightX, rightX + STATION_WIDTH);
+    const rightTerrainY = Math.max(...rightTerrainSection);
+    const rightY = rightTerrainY - STATION_HEIGHT - stationMargin;
     const newLeftStation: Station = { x: leftX, y: leftY, width: STATION_WIDTH, height: STATION_HEIGHT };
     const newRightStation: Station = { x: rightX, y: rightY, width: STATION_WIDTH, height: STATION_HEIGHT };
     setTerrain(newTerrain);
