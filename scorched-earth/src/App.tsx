@@ -19,7 +19,7 @@ const STATION_HEIGHT = 15;
 const GRAVITY = 100; // pixels per second²
 const MISSILE_RADIUS = 5;
 const EXPLOSION_RADIUS = 20;
-const DT = 0.05; // simulation time step in seconds
+const DT = 0.05; // simulation time step (in seconds)
 
 // Canon constants
 const CANON_LENGTH = 30; // length of the canon barrel
@@ -45,7 +45,7 @@ const App: React.FC = () => {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Helper: get random integer between min and max (inclusive)
+  // Helper: get a random integer between min and max (inclusive)
   const getRandomInt = (min: number, max: number): number => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   };
@@ -72,21 +72,49 @@ const App: React.FC = () => {
     { angle: "45", power: "250" },
     { angle: "45", power: "250" },
   ]);
-  const [message, setMessage] = useState<string>(
-    "Player 1 (Green Station): Your turn"
-  );
-  const [firing, setFiring] = useState<boolean>(false); // disables input while missile is in flight
+  const [message, setMessage] = useState<string>("");
+  const [firing, setFiring] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
 
-  // On mount (and whenever canvasWidth changes), generate smoother terrain and randomly position the stations.
+  // --- Update the Tab Title Based on Turn or Game Over ---
   useEffect(() => {
+    if (gameOver) {
+      document.title = "Scorched Earth: Game Over";
+    } else {
+      document.title = `Scorched Earth: Player ${currentPlayer === 0 ? "1" : "2"}`;
+    }
+  }, [currentPlayer, gameOver]);
+
+  // --- New Game Setup ---
+  // When the game starts or resets, randomize the first player using a "coin toss" style message.
+  const startNewGame = () => {
+    setGameOver(false);
+    setFiring(false);
+    // Randomize who goes first (0 or 1)
+    const firstPlayer = getRandomInt(0, 1);
+    setCurrentPlayer(firstPlayer);
+    setInputStep("angle");
+    setPlayerSettings([
+      { angle: "45", power: "250" },
+      { angle: "45", power: "250" },
+    ]);
+    // Set an initial "coin toss" message.
+    setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
+    // After 2 seconds, update the message to indicate the player's turn.
+    setTimeout(() => {
+      setMessage(
+        firstPlayer === 0
+          ? "Player 1 (Green Station): Your turn"
+          : "Player 2 (Blue Station): Your turn"
+      );
+    }, 2000);
+
+    // Generate terrain and randomly position the stations.
     const newTerrain = generateTerrain(canvasWidth);
     // Randomize station x-positions:
-    // For Player 1 (left): choose an x between 50 and (canvasWidth/2 - 150)
-    // For Player 2 (right): choose an x between (canvasWidth/2 + 150) and (canvasWidth - 50 - STATION_WIDTH)
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
-    // Use the terrain to compute the y positions.
+    // Compute y positions from terrain.
     const leftY = newTerrain[leftX] - STATION_HEIGHT;
     const rightXCenter = rightX + STATION_WIDTH / 2;
     const rightY = newTerrain[Math.floor(rightXCenter)] - STATION_HEIGHT;
@@ -97,9 +125,14 @@ const App: React.FC = () => {
     setLeftStation(newLeftStation);
     setRightStation(newRightStation);
     drawGame(newTerrain, newLeftStation, newRightStation, null);
+  };
+
+  // Start a new game on mount.
+  useEffect(() => {
+    startNewGame();
   }, [canvasWidth]);
 
-  // Redraw when player settings or turn changes (if not firing).
+  // Redraw when player settings or turn changes (and not firing).
   useEffect(() => {
     if (!firing) {
       drawGame(terrain, leftStation, rightStation, null);
@@ -109,21 +142,26 @@ const App: React.FC = () => {
 
   // --- Utility Functions ---
 
-  // Generate terrain with smooth rolling hills.
-  // We choose a random number of hills (between 1 and 20), then create control points and interpolate between them.
+  // Generate terrain with smooth, rolling hills.
+  // We choose a random number of control points (1 to 20 hills) and use cosine interpolation.
+  // For each control point, there’s a 20% chance it will be "tall" (up to canvasHeight) instead of normal.
   const generateTerrain = (width: number): number[] => {
-    // Choose number of hills between 1 and 20.
     const numHills = getRandomInt(1, 20);
-    // We'll have numHills + 1 control points (including the endpoints).
     const controlPoints: { x: number; y: number }[] = [];
     const segmentLength = width / (numHills + 1);
     for (let i = 0; i <= numHills; i++) {
       const x = i * segmentLength;
-      // Set y to a random value between TERRAIN_MIN_Y and TERRAIN_MAX_Y.
-      const y = getRandomInt(TERRAIN_MIN_Y, TERRAIN_MAX_Y);
+      let y: number;
+      if (Math.random() < 0.2) {
+        // Tall hill: y between TERRAIN_MAX_Y and canvasHeight.
+        y = getRandomInt(TERRAIN_MAX_Y, canvasHeight);
+      } else {
+        // Normal hill.
+        y = getRandomInt(TERRAIN_MIN_Y, TERRAIN_MAX_Y);
+      }
       controlPoints.push({ x, y });
     }
-    // Now interpolate between control points using cosine interpolation.
+    // Interpolate between control points using cosine interpolation.
     const terrainArr = new Array(width);
     for (let i = 0; i < controlPoints.length - 1; i++) {
       const p0 = controlPoints[i];
@@ -132,13 +170,11 @@ const App: React.FC = () => {
       const endX = Math.floor(p1.x);
       for (let x = startX; x < endX && x < width; x++) {
         const t = (x - p0.x) / (p1.x - p0.x);
-        // Cosine interpolation
         const t2 = (1 - Math.cos(t * Math.PI)) / 2;
-        const y = p0.y * (1 - t2) + p1.y * t2;
-        terrainArr[x] = y;
+        terrainArr[x] = p0.y * (1 - t2) + p1.y * t2;
       }
     }
-    // Fill any undefined indices (if any) with the last known value.
+    // Fill any undefined indices.
     for (let x = 0; x < width; x++) {
       if (terrainArr[x] === undefined) {
         terrainArr[x] = terrainArr[width - 1];
@@ -147,7 +183,7 @@ const App: React.FC = () => {
     return terrainArr;
   };
 
-  // Get terrain height at a given x using linear interpolation.
+  // Get terrain height at x using linear interpolation.
   const getTerrainHeight = (terrainArr: number[], x: number): number => {
     if (x < 0 || x >= terrainArr.length - 1) {
       return canvasHeight;
@@ -160,12 +196,10 @@ const App: React.FC = () => {
     return y0 + (y1 - y0) * fraction;
   };
 
-  // Draw the canon for a given station.
-  // For a station on the right, mirror the angle so that the canon points left.
+  // Draw the canon for a station.
   const drawCanon = (ctx: CanvasRenderingContext2D, station: Station, angleDeg: number) => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
-    // Canon base is at the center-top of the station.
     const baseX = station.x + station.width / 2;
     const baseY = station.y;
     ctx.save();
@@ -189,7 +223,6 @@ const App: React.FC = () => {
   };
 
   // Draw the game: sky, terrain, stations, canons, and (if applicable) missile.
-  // (The missile preview has been removed so that only the canon is visible until firing.)
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -217,20 +250,20 @@ const App: React.FC = () => {
     ctx.closePath();
     ctx.fill();
 
-    // Draw stations with their respective colors.
+    // Draw stations with colors.
     ctx.fillStyle = "darkgreen"; // Player 1 (left)
     ctx.fillRect(left.x, left.y, left.width, left.height);
     ctx.fillStyle = "navy"; // Player 2 (right)
     ctx.fillRect(right.x, right.y, right.width, right.height);
 
-    // Draw station labels below each station (centered).
+    // Draw station labels (centered below the station).
     ctx.fillStyle = "white";
     ctx.font = "16px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Player 1", left.x + left.width / 2, left.y + left.height + 20);
     ctx.fillText("Player 2", right.x + right.width / 2, right.y + right.height + 20);
 
-    // Draw canons using each player's stored angle.
+    // Draw canons.
     const leftAngle = parseFloat(playerSettings[0].angle);
     const rightAngle = parseFloat(playerSettings[1].angle);
     const validLeftAngle = !isNaN(leftAngle) ? leftAngle : 45;
@@ -248,8 +281,6 @@ const App: React.FC = () => {
   };
 
   // --- Missile Simulation ---
-  // Launches the missile immediately from the canon tip with consistent velocity.
-  // For simulation, we compute a simulation angle that is mirrored for Player Two.
   const simulateMissile = (
     startPos: Point,
     simAngleRad: number,
@@ -300,7 +331,7 @@ const App: React.FC = () => {
     animationFrameId = requestAnimationFrame(animate);
   };
 
-  // --- Explosion Animation and Hit Detection ---
+  // --- Explosion Animation ---
   const explosion = (explosionPos: Point, enemyStation: Station, directHit: boolean = false) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -359,13 +390,22 @@ const App: React.FC = () => {
   const resetGame = () => {
     setGameOver(false);
     setFiring(false);
-    setCurrentPlayer(0);
+    // Randomize first player (simulate a coin toss)
+    const firstPlayer = getRandomInt(0, 1);
+    setCurrentPlayer(firstPlayer);
     setInputStep("angle");
     setPlayerSettings([
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    setMessage("Player 1 (Green Station): Your turn");
+    setMessage(`Coin toss: Player ${firstPlayer === 0 ? "1" : "2"} goes first!`);
+    setTimeout(() => {
+      setMessage(
+        firstPlayer === 0
+          ? "Player 1 (Green Station): Your turn"
+          : "Player 2 (Blue Station): Your turn"
+      );
+    }, 2000);
     const newTerrain = generateTerrain(canvasWidth);
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(Math.floor(canvasWidth / 2) + 150, canvasWidth - 50 - STATION_WIDTH);
@@ -471,53 +511,47 @@ const App: React.FC = () => {
           style={{ border: "1px solid black", background: "#87CEEB", width: "100%" }}
         />
         <div style={{ marginTop: "10px" }}>
-          {gameOver ? (
-            <button onClick={resetGame}>New Game</button>
-          ) : (
-            <>
-              <p>{message}</p>
-              {!firing && (
-                <div>
-                  {inputStep === "angle" ? (
-                    <label>
-                      Firing Angle (0–90):{" "}
-                      <input
-                        ref={angleInputRef}
-                        type="number"
-                        value={playerSettings[currentPlayer].angle}
-                        onChange={handleAngleChange}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Angle"
-                        min="0"
-                        max="90"
-                        step="0.1"
-                      />
-                    </label>
-                  ) : (
-                    <label>
-                      Missile Power (0–500):{" "}
-                      <input
-                        ref={powerInputRef}
-                        type="number"
-                        value={playerSettings[currentPlayer].power}
-                        onChange={handlePowerChange}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Power"
-                        min="0"
-                        max="500"
-                        step="1"
-                      />
-                    </label>
-                  )}
-                  <button
-                    onClick={inputStep === "angle" ? handleAngleSubmit : handlePowerSubmit}
-                    style={{ marginLeft: "10px" }}
-                  >
-                    {inputStep === "angle" ? "Next" : "Fire!"}
-                  </button>
-                </div>
+          <p>{message}</p>
+          {!firing && !gameOver && (
+            <div>
+              {inputStep === "angle" ? (
+                <label>
+                  Firing Angle (0–90):{" "}
+                  <input
+                    ref={angleInputRef}
+                    type="number"
+                    value={playerSettings[currentPlayer].angle}
+                    onChange={handleAngleChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Angle"
+                    min="0"
+                    max="90"
+                    step="0.1"
+                  />
+                </label>
+              ) : (
+                <label>
+                  Missile Power (0–500):{" "}
+                  <input
+                    ref={powerInputRef}
+                    type="number"
+                    value={playerSettings[currentPlayer].power}
+                    onChange={handlePowerChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Power"
+                    min="0"
+                    max="500"
+                    step="1"
+                  />
+                </label>
               )}
-            </>
+              <button
+                onClick={inputStep === "angle" ? handleAngleSubmit : handlePowerSubmit}
+                style={{ marginLeft: "10px" }}
+              >
+                {inputStep === "angle" ? "Next" : "Fire!"}
+              </button>
+            </div>
           )}
         </div>
       </div>
