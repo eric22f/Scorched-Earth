@@ -40,7 +40,7 @@ interface PlayerSettings {
 
 const App: React.FC = () => {
   // Use the full browser width for the canvas.
-  const [canvasWidth, setCanvasWidth] = useState(window.innerWidth);
+  const [canvasWidth] = useState(window.innerWidth);
   const canvasHeight = 600; // fixed height
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
