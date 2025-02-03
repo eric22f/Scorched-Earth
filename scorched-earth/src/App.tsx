@@ -13,6 +13,19 @@ interface Point {
   y: number;
 }
 
+// New interface for clouds.
+interface Cloud {
+  x: number;
+  y: number;
+  // The "wide" rectangle has width > height.
+  wideRect: { width: number; height: number };
+  // The "tall" rectangle has height > width.
+  tallRect: { width: number; height: number };
+  // Offsets for positioning the tall rectangle relative to the cloud’s base.
+  offsetX: number;
+  offsetY: number;
+}
+
 // --- Constants & Canvas Dimensions ---
 const STATION_WIDTH = 30;
 const STATION_HEIGHT = 15;
@@ -42,8 +55,10 @@ const App: React.FC = () => {
   // Use the full browser width for the canvas.
   const [canvasWidth] = useState(window.innerWidth);
   const canvasHeight = 600; // fixed height
-
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // New state for clouds.
+  const [clouds, setClouds] = useState<Cloud[]>([]);
 
   // Helper: get a random integer between min and max (inclusive)
   const getRandomInt = (min: number, max: number): number => {
@@ -99,7 +114,7 @@ const App: React.FC = () => {
       { angle: "45", power: "250" },
       { angle: "45", power: "250" },
     ]);
-    // Start coin toss animation using a spinner.
+    // Start coin toss animation for a random duration between 2 and 5 seconds.
     setTossing(true);
     const coinTossTime = getRandomInt(2000, 5000);
     const spinnerSymbols = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -118,10 +133,10 @@ const App: React.FC = () => {
       );
     }, coinTossTime);
 
-    // Generate terrain and position stations.
+    // Generate terrain and randomly position the stations.
     const newTerrain = generateTerrain(canvasWidth);
-    // Updated station positioning: sample the terrain over the station's width,
-    // use the maximum terrain height within that slice, and subtract the station height plus a margin.
+    // Update station positioning: sample the terrain over the station's width,
+    // use the maximum value plus a margin to position the station.
     const stationMargin = 10;
     const leftX = getRandomInt(50, Math.floor(canvasWidth / 2) - 150);
     const rightX = getRandomInt(
@@ -136,6 +151,36 @@ const App: React.FC = () => {
     const rightY = rightTerrainY - STATION_HEIGHT - stationMargin;
     const newLeftStation: Station = { x: leftX, y: leftY, width: STATION_WIDTH, height: STATION_HEIGHT };
     const newRightStation: Station = { x: rightX, y: rightY, width: STATION_WIDTH, height: STATION_HEIGHT };
+
+    // Generate a random number of clouds (between 0 and 5).
+    const numClouds = getRandomInt(0, 5);
+    const newClouds: Cloud[] = [];
+    for (let i = 0; i < numClouds; i++) {
+      // Cloud position in the sky (y from 10 to 150, x from 0 to canvasWidth - 100 for margin).
+      const cloudX = getRandomInt(0, canvasWidth - 100);
+      const cloudY = getRandomInt(10, 150);
+      // Wide rectangle: width between 80 and 150, height between 20 and 40.
+      const wideWidth = getRandomInt(80, 150);
+      const wideHeight = getRandomInt(20, 40);
+      // Ensure wide rectangle: width > height.
+      // Tall rectangle: between 5 and 20 less than wideWidth, height between 50 and 100.
+      const tallWidth = wideWidth - getRandomInt(5, 20);
+      const tallHeight = getRandomInt(50, 100);
+      // Ensure tall rectangle: height > width.
+      // Offsets for the tall rectangle relative to the cloud's base.
+      const offsetX = getRandomInt(-10, 10);
+      const offsetY = getRandomInt(-20, 0);
+      newClouds.push({
+        x: cloudX,
+        y: cloudY,
+        wideRect: { width: wideWidth, height: wideHeight },
+        tallRect: { width: tallWidth, height: tallHeight },
+        offsetX,
+        offsetY,
+      });
+    }
+    // Save clouds in state.
+    setClouds(newClouds);
 
     setTerrain(newTerrain);
     setLeftStation(newLeftStation);
@@ -158,7 +203,6 @@ const App: React.FC = () => {
 
   // --- Utility Functions ---
 
-  // Generate terrain using control points and cosine interpolation.
   const generateTerrain = (width: number): number[] => {
     const numPoints = getRandomInt(2, 21);
     const controlPoints: { x: number; y: number }[] = [];
@@ -198,7 +242,6 @@ const App: React.FC = () => {
     return terrainArr;
   };
 
-  // Get terrain height at x using linear interpolation.
   const getTerrainHeight = (terrainArr: number[], x: number): number => {
     if (x < 0 || x >= terrainArr.length - 1) {
       return canvasHeight;
@@ -211,7 +254,6 @@ const App: React.FC = () => {
     return y0 + (y1 - y0) * fraction;
   };
 
-  // Draw the canon for a station.
   const drawCanon = (ctx: CanvasRenderingContext2D, station: Station, angleDeg: number) => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
@@ -225,7 +267,6 @@ const App: React.FC = () => {
     ctx.restore();
   };
 
-  // Compute the canon tip (muzzle) for a station.
   const getCanonTip = (station: Station, angleDeg: number): Point => {
     const canonAngleDeg = station.x > canvasWidth / 2 ? 180 - angleDeg : angleDeg;
     const angleRad = (canonAngleDeg * Math.PI) / 180;
@@ -237,7 +278,24 @@ const App: React.FC = () => {
     };
   };
 
-  // Draw the game state.
+  // New helper function to draw clouds.
+  const drawClouds = (ctx: CanvasRenderingContext2D) => {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    clouds.forEach((cloud) => {
+      // Draw the wide rectangle.
+      ctx.fillRect(cloud.x, cloud.y, cloud.wideRect.width, cloud.wideRect.height);
+      // Draw the tall rectangle with its offset.
+      const wDiff = cloud.wideRect.width * .35;
+      const hDiff = cloud.wideRect.height * 1.15;
+      ctx.fillRect(
+        cloud.x + (wDiff / 2),
+        cloud.y - (hDiff / 2),
+        cloud.wideRect.width - wDiff,
+        cloud.wideRect.height + hDiff
+      );
+    });
+  };
+
   const drawGame = (
     terrainArr: number[],
     left: Station,
@@ -253,6 +311,9 @@ const App: React.FC = () => {
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
     ctx.fillStyle = "#87CEEB";
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Draw clouds.
+    drawClouds(ctx);
 
     // Draw terrain.
     ctx.fillStyle = "#8B4513";
@@ -347,66 +408,64 @@ const App: React.FC = () => {
     animationFrameId = requestAnimationFrame(animate);
   };
 
-// --- Explosion Animation and Hit Detection ---
-const explosion = (
-  explosionPos: Point,
-  enemyStation: Station,
-  directHit: boolean = false
-) => {
-  const canvas = canvasRef.current;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  let frames = 0;
-  const maxFrames = 7; // Reduced from 10 to 7 (approx. 33% shorter)
+  // --- Explosion Animation and Crater Effect (unchanged, except as previously updated) ---
+  const explosion = (
+    explosionPos: Point,
+    enemyStation: Station,
+    directHit: boolean = false
+  ) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    let frames = 0;
+    const maxFrames = 10;
 
-  const explosionAnimation = () => {
-    drawGame(terrain, leftStation, rightStation, null);
-    ctx.fillStyle = "red";
-    ctx.beginPath();
-    ctx.arc(explosionPos.x, explosionPos.y, EXPLOSION_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
+    const explosionAnimation = () => {
+      drawGame(terrain, leftStation, rightStation, null);
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(explosionPos.x, explosionPos.y, EXPLOSION_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
 
-    frames++;
-    if (frames < maxFrames) {
-      requestAnimationFrame(explosionAnimation);
-    } else {
-      // Apply crater effect to the terrain.
-      // Crater radius is now equal to the full explosion radius.
-      const craterRadius = EXPLOSION_RADIUS;
-      const newTerrain = [...terrain];
-      const startX = Math.max(0, Math.floor(explosionPos.x - craterRadius));
-      const endX = Math.min(newTerrain.length - 1, Math.ceil(explosionPos.x + craterRadius));
-      for (let x = startX; x <= endX; x++) {
-        const d = Math.abs(x - explosionPos.x);
-        if (d < craterRadius) {
-          // Lower the terrain at x by an amount that tapers off with distance.
-          const delta = craterRadius * (1 - d / craterRadius);
-          newTerrain[x] = Math.min(newTerrain[x] + delta, canvasHeight);
-        }
-      }
-      setTerrain(newTerrain);
-
-      const enemyCenter = {
-        x: enemyStation.x + enemyStation.width / 2,
-        y: enemyStation.y + enemyStation.height / 2,
-      };
-      const dx = explosionPos.x - enemyCenter.x;
-      const dy = explosionPos.y - enemyCenter.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (directHit || distance <= EXPLOSION_RADIUS) {
-        setMessage(`Player ${currentPlayer === 0 ? "1" : "2"} wins!`);
-        setGameOver(true);
+      frames++;
+      if (frames < maxFrames) {
+        requestAnimationFrame(explosionAnimation);
       } else {
-        setMessage("Missed! Switching turns...");
-        setTimeout(() => switchTurn(), 1000);
-      }
-      setFiring(false);
-    }
-  };
+        // Apply crater effect.
+        const craterRadius = EXPLOSION_RADIUS; // Now crater radius equals the explosion radius.
+        const newTerrain = [...terrain];
+        const startX = Math.max(0, Math.floor(explosionPos.x - craterRadius));
+        const endX = Math.min(newTerrain.length - 1, Math.ceil(explosionPos.x + craterRadius));
+        for (let x = startX; x <= endX; x++) {
+          const d = Math.abs(x - explosionPos.x);
+          if (d < craterRadius) {
+            const delta = craterRadius * (1 - d / craterRadius);
+            newTerrain[x] = Math.min(newTerrain[x] + delta, canvasHeight);
+          }
+        }
+        setTerrain(newTerrain);
 
-  explosionAnimation();
-};
+        const enemyCenter = {
+          x: enemyStation.x + enemyStation.width / 2,
+          y: enemyStation.y + enemyStation.height / 2,
+        };
+        const dx = explosionPos.x - enemyCenter.x;
+        const dy = explosionPos.y - enemyCenter.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (directHit || distance <= EXPLOSION_RADIUS) {
+          setMessage(`Player ${currentPlayer === 0 ? "1" : "2"} wins!`);
+          setGameOver(true);
+        } else {
+          setMessage("Missed! Switching turns...");
+          setTimeout(() => switchTurn(), 1000);
+        }
+        setFiring(false);
+      }
+    };
+
+    explosionAnimation();
+  };
 
   // --- Turn Switching ---
   const switchTurn = () => {
@@ -457,7 +516,7 @@ const explosion = (
       Math.floor(canvasWidth / 2) + 150,
       canvasWidth - 50 - STATION_WIDTH
     );
-    // Updated station positioning to ensure they are fully on top of the terrain.
+    // Updated station positioning: sample the terrain over the station's width.
     const stationMargin = 10;
     const leftTerrainSection = newTerrain.slice(leftX, leftX + STATION_WIDTH);
     const leftTerrainY = Math.max(...leftTerrainSection);
@@ -471,6 +530,33 @@ const explosion = (
     setLeftStation(newLeftStation);
     setRightStation(newRightStation);
     drawGame(newTerrain, newLeftStation, newRightStation, null);
+
+    // Also regenerate clouds.
+    const numClouds = getRandomInt(0, 5);
+    const newClouds: Cloud[] = [];
+    for (let i = 0; i < numClouds; i++) {
+      const cloudX = getRandomInt(0, canvasWidth - 100);
+      const cloudY = getRandomInt(10, 150);
+      // Wide rectangle: width between 80 and 150, height between 20 and 40.
+      const wideWidth = getRandomInt(80, 150);
+      const wideHeight = getRandomInt(20, 40);
+      // Ensure wide: width > height.
+      // Tall rectangle: width between 20 and 40, height between 50 and 100.
+      const tallWidth = getRandomInt(20, 40);
+      const tallHeight = getRandomInt(50, 100);
+      // Ensure tall: height > width.
+      const offsetX = getRandomInt(-10, 10);
+      const offsetY = getRandomInt(-20, 0);
+      newClouds.push({
+        x: cloudX,
+        y: cloudY,
+        wideRect: { width: wideWidth, height: wideHeight },
+        tallRect: { width: tallWidth, height: tallHeight },
+        offsetX,
+        offsetY,
+      });
+    }
+    setClouds(newClouds);
   };
 
   // --- Handling User Input & Auto-Focus ---
