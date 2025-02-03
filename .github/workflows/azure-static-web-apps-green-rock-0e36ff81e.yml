@@ -14,6 +14,10 @@ jobs:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
+    defaults:
+      run:
+        working-directory: scorched-earth  # 🔥 Set working directory to scorched-earth for all commands
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -26,16 +30,12 @@ jobs:
           node-version: 18
 
       - name: Install Dependencies
-        run: |
-          cd client  # Go into the React app directory
-          npm install
+        run: npm install  # No need to cd, working directory is already set
 
       - name: Build React App
-        run: |
-          cd client  # Ensure we are in the right directory
-          npm run build
+        run: npm run build  # No need to cd, working directory is already set
 
-      - name: Build And Deploy
+      - name: Deploy to Azure
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -43,15 +43,19 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "scorched-earth"  # <-- Change this to match your React app's folder
-          output_location: "scorched-earth/build"  # <-- This must match your React build output
-          # api_location: "api" # Uncomment if you have a backend API
+          app_location: "."  # 🔥 Since we are already inside scorched-earth, this is now "."
+          output_location: "build"  # 🔥 React build output stays the same
+          # api_location: "api"  # Uncomment if you have an API backend
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    defaults:
+      run:
+        working-directory: scorched-earth  # 🔥 Ensure working directory is set for PR close job
+
     steps:
       - name: Close Pull Request
         id: closepullrequest
