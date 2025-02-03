@@ -347,65 +347,66 @@ const App: React.FC = () => {
     animationFrameId = requestAnimationFrame(animate);
   };
 
-  // --- Explosion Animation and Crater Effect ---
-  const explosion = (
-    explosionPos: Point,
-    enemyStation: Station,
-    directHit: boolean = false
-  ) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let frames = 0;
-    const maxFrames = 10;
+// --- Explosion Animation and Hit Detection ---
+const explosion = (
+  explosionPos: Point,
+  enemyStation: Station,
+  directHit: boolean = false
+) => {
+  const canvas = canvasRef.current;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  let frames = 0;
+  const maxFrames = 7; // Reduced from 10 to 7 (approx. 33% shorter)
 
-    const explosionAnimation = () => {
-      drawGame(terrain, leftStation, rightStation, null);
-      ctx.fillStyle = "red";
-      ctx.beginPath();
-      ctx.arc(explosionPos.x, explosionPos.y, EXPLOSION_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
+  const explosionAnimation = () => {
+    drawGame(terrain, leftStation, rightStation, null);
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(explosionPos.x, explosionPos.y, EXPLOSION_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
 
-      frames++;
-      if (frames < maxFrames) {
-        requestAnimationFrame(explosionAnimation);
-      } else {
-        // Apply crater effect to the terrain.
-        const craterRadius = EXPLOSION_RADIUS / 2; // crater radius is half the explosion radius
-        const newTerrain = [...terrain];
-        const startX = Math.max(0, Math.floor(explosionPos.x - craterRadius));
-        const endX = Math.min(newTerrain.length - 1, Math.ceil(explosionPos.x + craterRadius));
-        for (let x = startX; x <= endX; x++) {
-          const d = Math.abs(x - explosionPos.x);
-          if (d < craterRadius) {
-            // Calculate how much to lower the terrain based on distance.
-            const delta = (EXPLOSION_RADIUS / 2) * (1 - d / craterRadius);
-            newTerrain[x] = Math.min(newTerrain[x] + delta, canvasHeight);
-          }
+    frames++;
+    if (frames < maxFrames) {
+      requestAnimationFrame(explosionAnimation);
+    } else {
+      // Apply crater effect to the terrain.
+      // Crater radius is now equal to the full explosion radius.
+      const craterRadius = EXPLOSION_RADIUS;
+      const newTerrain = [...terrain];
+      const startX = Math.max(0, Math.floor(explosionPos.x - craterRadius));
+      const endX = Math.min(newTerrain.length - 1, Math.ceil(explosionPos.x + craterRadius));
+      for (let x = startX; x <= endX; x++) {
+        const d = Math.abs(x - explosionPos.x);
+        if (d < craterRadius) {
+          // Lower the terrain at x by an amount that tapers off with distance.
+          const delta = craterRadius * (1 - d / craterRadius);
+          newTerrain[x] = Math.min(newTerrain[x] + delta, canvasHeight);
         }
-        setTerrain(newTerrain);
-
-        const enemyCenter = {
-          x: enemyStation.x + enemyStation.width / 2,
-          y: enemyStation.y + enemyStation.height / 2,
-        };
-        const dx = explosionPos.x - enemyCenter.x;
-        const dy = explosionPos.y - enemyCenter.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (directHit || distance <= EXPLOSION_RADIUS) {
-          setMessage(`Player ${currentPlayer === 0 ? "1" : "2"} wins!`);
-          setGameOver(true);
-        } else {
-          setMessage("Missed! Switching turns...");
-          setTimeout(() => switchTurn(), 1000);
-        }
-        setFiring(false);
       }
-    };
+      setTerrain(newTerrain);
 
-    explosionAnimation();
+      const enemyCenter = {
+        x: enemyStation.x + enemyStation.width / 2,
+        y: enemyStation.y + enemyStation.height / 2,
+      };
+      const dx = explosionPos.x - enemyCenter.x;
+      const dy = explosionPos.y - enemyCenter.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (directHit || distance <= EXPLOSION_RADIUS) {
+        setMessage(`Player ${currentPlayer === 0 ? "1" : "2"} wins!`);
+        setGameOver(true);
+      } else {
+        setMessage("Missed! Switching turns...");
+        setTimeout(() => switchTurn(), 1000);
+      }
+      setFiring(false);
+    }
   };
+
+  explosionAnimation();
+};
 
   // --- Turn Switching ---
   const switchTurn = () => {
